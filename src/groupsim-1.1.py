@@ -397,21 +397,21 @@ def plot_groupsim_manhattan(scores, alignment, gids_to_seqs, output_name, thresh
     # Scatter Plot (colored by Z-score with a color bar)
     ax = sns.scatterplot(
         x='Alignment position', y='Groupsim score', hue='z score', data=plot_df, 
-        palette='coolwarm', hue_norm=(0, max(10, z_scores.max() if z_scores.size > 0 else 0)), 
-        s=50, legend="full",  # "full" to show the color bar
+        palette='coolwarm', hue_norm=(0, max(3, z_scores.max() if z_scores.size > 0 else 0)), 
+        s=50, legend=False,
         edgecolor='black', linewidth=0.5
     )
     
     # Add a title to the color bar
-    norm = plt.Normalize(vmin=0, vmax=max(10, z_scores.max() if z_scores.size > 0 else 0))
-    sm = plt.cm.ScalarMappable(cmap="coolwarm", norm=norm)
+    norm = plt.Normalize(vmin=0, vmax=max(3, z_scores.max() if z_scores.size > 0 else 0))
+    sm = plt.cm.ScalarMappable(cmap="coolwarm", norm=plt.Normalize(0, 3))
     sm.set_array([]) # dummy array for the color bar
     ax.figure.colorbar(sm, ax=ax, label="Z-score")
 
     # Line Plot (Smoothed trend/mean line) - Make it appear on top
     sns.lineplot(
         x='Alignment position', y='Groupsim score', data=plot_df, 
-        color='black', linewidth=2, alpha=0.8, estimator='mean', ci=None, zorder=10 # Higher zorder to be on top
+        color='black', linewidth=2, alpha=0.8, estimator='mean', errorbar=None, zorder=10 # Higher zorder to be on top
     )
     
     plt.title("GroupSim Scores Across Alignment Positions", fontsize=14, fontweight='bold')
@@ -624,6 +624,15 @@ def main():
     if map_scores_to_01: scores = norm_01(scores)
     if cons_win_len > 0: scores = cons_window_score(scores, alignment, cons_win_len, lamb)
 
+	# --- Score Columns with Z-scores ---  
+    valid_scores_for_z = [s for s in scores if s is not None]
+    if valid_scores_for_z:
+        mean_s = np.mean(valid_scores_for_z)
+        std_s = np.std(valid_scores_for_z)
+        # Generate a list matching the exact length of scores, leaving None as None
+        global_z_scores = [((s - mean_s) / std_s if std_s != 0 else 0.0) if s is not None else None for s in scores]
+    else:
+        global_z_scores = [None] * len(scores)
 
     # --- Visualization ---
     if linkage_matrix is not None:
@@ -647,12 +656,16 @@ def main():
     score_file.write(f'# window params: len={cons_win_len}, lambda={lamb:.2f}\n')
     score_file.write(f'# group gap cutoff: {group_gap_cutoff:.2f}  column gap cutoff: {column_gap_cutoff:.2f}\n')
     score_file.write(f'# Groups: {", ".join(group_ids)}\n')
-    score_file.write('# col_num\tscore\tcolumn_residues\n')
+    score_file.write('# col_num\tscore\tz_score\tcolumn_residues\n')
 
     # Write column scores
     for i, col_score in enumerate(scores):
         col_str = format_column(i, alignment, gids_to_seqs)
-        score_file.write(f'{i}\t{col_score:.6f}\t{col_str}\n' if col_score is not None else f'{i}\tNone\t{col_str}\n')
+        z_val = global_z_scores[i]
+        if col_score is not None and z_val is not None:
+            score_file.write(f'{i}\t{col_score:.6f}\t{z_val:.4f}\t{col_str}\n') 
+        else:    
+            score_file.write(f'{i}\tNone\tNone\t{col_str}\n')
 
     # Detailed Output
     write_detailed_output(score_file, names, alignment, scores, gids_to_seqs, group_ids, final_identity_cutoff)
