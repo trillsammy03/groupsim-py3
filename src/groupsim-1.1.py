@@ -397,7 +397,7 @@ def plot_groupsim_manhattan(scores, alignment, gids_to_seqs, output_name, thresh
     # Scatter Plot (colored by Z-score with a color bar)
     ax = sns.scatterplot(
         x='Alignment position', y='Groupsim score', hue='z score', data=plot_df, 
-        palette='coolwarm', hue_norm=(0, max(3, z_scores.max() if z_scores.size > 0 else 0)), 
+        palette='coolwarm', hue_norm=(0, 3 if z_scores.size > 0 else 0), 
         s=50, legend=False,
         edgecolor='black', linewidth=0.5
     )
